@@ -1,5 +1,5 @@
 import re
-
+from typing import Optional
 def extract_sql_query(text:str)->str:
     if not text:
         return ""
@@ -26,3 +26,32 @@ def get_schema(data,sample_size=5):
                 break
         schema[key]=default_type
     return schema
+
+def enforce_coverage_pattern(query:str,table_name:str,column_names:str,value:Optional[str]=None)->str:
+    queryL=query.lower()
+    if "coverage" in queryL:
+        for col in column_names:
+            if col.lower() in queryL:
+                tgt_col=col
+                break
+        if not tgt_col:
+            tgt_col="SDC_FILENAME"
+        
+        if value==None:
+            fixed_query = f"""
+            SELECT
+            {tgt_col},
+            COUNT(CASE WHEN status = 'passed' THEN 1 END) * 1.0 / COUNT(*) AS coverage
+            FROM {table_name}
+            GROUP BY {tgt_col};
+            """.strip()
+            return fixed_query
+        else:
+            fixed_query = f"""
+            SELECT
+            {tgt_col},
+            COUNT(CASE WHEN LOWER(status) = 'passed' and LOWER({tgt_col})=LOWER({value}) THEN 1 END) * 1.0 / COUNT(* where LOWER({tgt_col})=LOWER({value})) AS coverage
+            FROM {table_name}
+            """.strip()
+            return fixed_query
+    return query
